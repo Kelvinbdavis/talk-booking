@@ -128,7 +128,9 @@ resource "aws_iam_role_policy" "terraform_state" {
         Action = [
           "ec2:*",
           "elasticloadbalancing:*",
-          "autoscaling:*"
+          "autoscaling:*",
+          "sns:*", # Add SNS permissions
+          "cloudwatch:*"
         ]
         Resource = "*"
       }
