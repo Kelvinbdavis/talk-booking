@@ -3,48 +3,57 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main # Trigger on pushes to the main branch
+      - main
   pull_request:
     branches:
-      - main # Trigger on pull requests to the main branch
+      - main
 
 jobs:
-  # Docker Build and Push Job
-  docker:
-    name: Build and Push Docker Image
+  combined:
+    name: Code Quality and Tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write # Required to push Docker images to GitHub Packages
-      id-token: write # Required for authentication with OIDC providers
 
     steps:
-      # Step 1: Checkout the repository
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # Step 2: Set up Docker Buildx
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      # Step 3: Log in to GitHub Container Registry
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          python-version: "3.11"
 
-      # Step 4: Build and Push Docker Image
-      - name: Build and Push Docker Image
+      - name: Install Poetry
         run: |
-          docker build -f ci_cd/python/Dockerfile -t ghcr.io/kelvinbdavis/talk-booking:cicd-python3.11-slim .
-          docker push ghcr.io/kelvinbdavis/talk-booking:cicd-python3.11-slim
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
 
-  # Code Quality and Testing Job
-  test:
-    name: Code Quality and Testing
-    needs: docker # Ensure the Docker job runs first
-    uses: Kelvinbdavis/talk-booking/.github/workflows/ci-cd.yml@main # Reference with branch
-    with:
-      python-version: "3.11"
+      - name: Install Dependencies
+        run: |
+          cd services/talk-booking/
+          poetry install
+
+      - name: Run Code Quality Tools
+        run: |
+          cd services/talk-booking/
+          poetry run flake8 .
+          poetry run black . --check
+          poetry run isort . --check-only --profile black
+          poetry run bandit .
+          poetry run safety check
+
+      - name: Run Tests with Coverage
+        run: |
+          cd services/talk-booking/
+          poetry run python -m pytest --junitxml=report.xml --cov=./ --cov-report=xml tests/unit tests/integration
+
+      - name: Upload Coverage Report to Codecov
+        run: |
+          curl -Os https://uploader.codecov.io/latest/linux/codecov
+          chmod +x codecov
+          ./codecov -R services/talk-booking/
+
+      - name: Upload Test Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: junit-report
+          path: services/talk-booking/report.xml
