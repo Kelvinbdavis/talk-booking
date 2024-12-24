@@ -58,3 +58,86 @@ output "dynamodb_table" {
   value       = aws_dynamodb_table.terraform_locks.name
   description = "Name of the DynamoDB table for state locking"
 }
+
+
+resource "aws_iam_openid_connect_provider" "github_actions" {
+  url = "https://token.actions.githubusercontent.com"
+
+  client_id_list = ["sts.amazonaws.com"]
+
+  thumbprint_list = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1"  # GitHub Actions OIDC Provider thumbprint
+  ]
+}
+
+# Create IAM Role for GitHub Actions
+resource "aws_iam_role" "github_actions" {
+  name = "github-actions-terraform-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.github_actions.arn
+        }
+        Condition = {
+          StringLike = {
+            "token.actions.githubusercontent.com:sub": "repo:Kelvinbdavis/talk-booking:*" # Adjust this to your repo
+          }
+        }
+      }
+    ]
+  })
+}
+
+# Create IAM Policy for Terraform state management and VPC resources
+resource "aws_iam_role_policy" "terraform_state" {
+  name = "terraform-state-management"
+  role = aws_iam_role.github_actions.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket",
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
+        Resource = [
+          aws_s3_bucket.terraform_state.arn,
+          "${aws_s3_bucket.terraform_state.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem"
+        ]
+        Resource = aws_dynamodb_table.terraform_locks.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:*",
+          "elasticloadbalancing:*",
+          "autoscaling:*"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Add this output
+output "github_actions_role_arn" {
+  value       = aws_iam_role.github_actions.arn
+  description = "ARN of the GitHub Actions IAM role"
+}
