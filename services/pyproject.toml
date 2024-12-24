@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "talk-booking"
+version = "0.1.0"
+description = ""
+authors = ["Kelvin Davis <archidit7@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+
+[tool.poetry.dev-dependencies]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pytest-cov = "^6.0.0"
+black = "^24.10.0"
+isort = "^5.13.2"
+flake8 = "^7.1.1"
+bandit = "^1.8.0"
+safety = "^3.2.14"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
