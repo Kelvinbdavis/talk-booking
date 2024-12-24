@@ -1,0 +1,55 @@
+name: Service Code Quality
+
+on:
+  workflow_call: # Makes this workflow reusable
+    inputs:
+      python-version:
+        required: true
+        type: string
+        default: "3.11"
+
+jobs:
+  test:
+    name: Code Quality and Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Step 2: Debug Directory Structure (Optional)
+      - name: Debug Directory Structure
+        run: ls -R
+
+      # Step 3: Install Poetry
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "PATH=$HOME/.local/bin:$PATH" >> $GITHUB_ENV
+
+      # Step 4: Navigate to Project Directory
+      - name: Navigate to Project Directory
+        run: cd services/talk-booking/
+
+      # Step 5: Install Dependencies
+      - name: Install Dependencies
+        run: |
+          cd services/talk-booking/
+          poetry install
+
+      # Step 6: Run Code Quality Checks
+      - name: Code Quality Checks
+        run: |
+          cd services/talk-booking/
+          poetry run flake8 .
+          poetry run black . --check
+          poetry run isort . --check-only --profile black
+          poetry run bandit .
+          poetry run safety check
+
+      # Step 7: Run Tests
+      - name: Run Tests
+        run: |
+          cd services/talk-booking/
+          poetry run pytest --cov
